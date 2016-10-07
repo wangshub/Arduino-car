@@ -11,9 +11,9 @@ struct  anglePID {
   double Setpoint;
 } anglepid;
 
-double Kp = 2.25 , Ki = 5, Kd =0.102;
+double Kp = 4 , Ki = 4, Kd = 1;
 double Setpoint, Input, Output;
-PID myPID(&anglepid.Input, &anglepid.Output, &anglepid.Setpoint, Kp, Ki, Kd, REVERSE);
+PID myPID(&anglepid.Input, &anglepid.Output, &anglepid.Setpoint, Kp, Ki, Kd, DIRECT);
 int PWM;
 
 
@@ -23,6 +23,7 @@ float GyroData[3];
 float AngleData[3];
 int i;
 double angle;
+double anglePrev;
 SoftwareSerial mySerial(A0, A1);   //RX  TX
 void mySerialEvent() ;  //Waiting JY901 serial data
 
@@ -43,30 +44,48 @@ void setup() {
 
   anglepid.Input = angle;                       //PID input
   anglepid.Setpoint = 0;                         //PID目标值
-  myPID.SetOutputLimits(-200, 200);    //PID上下限
+  myPID.SetOutputLimits(-100, 100);    //PID上下限
   myPID.SetSampleTime(10);                //PID时间
   myPID.SetMode(AUTOMATIC);          //turn the PID on
 
+  delay(1000);
+  mySerialEvent() ;
+  anglePrev =  (float)JY901.stcAngle.Angle[0] / 32768 * 180;
 }
 
 //*********MAIN LOOP*****************************
 void loop() {
   mySerialEvent() ;
   for (i = 0; i < 3; i++) {
-    AccData[i]    = (float)JY901.stcAcc.a[i] / 32768 * 16;
-    GyroData[i]  = (float)JY901.stcGyro.w[i] / 32768 * 2000;
+    //       AccData[i]    = (float)JY901.stcAcc.a[i] / 32768 * 16;
+    //       GyroData[i]  = (float)JY901.stcGyro.w[i] / 32768 * 2000;
     AngleData[i] = (float)JY901.stcAngle.Angle[i] / 32768 * 180;
   }
-  Serial.print(AngleData[0]); Serial.print("  "); Serial.print(AngleData[1]); Serial.print("  "); Serial.println(AngleData[2]);
+  //Serial.print(AngleData[0]); Serial.print("  "); Serial.print(AngleData[1]); Serial.print("  "); Serial.println(AngleData[2]);
+  angle = (double)AngleData[0] ;
+  if (abs(angle - anglePrev) > 15) {
+    mySerialEvent() ;
+    mySerialEvent() ;
+    angle = (double)JY901.stcAngle.Angle[i] / 32768 * 180;
+  }
+  anglePrev = angle ;
 
 
-  angle = (double)AngleData[0];
+  anglepid.Input = angle;
   myPID.Compute();
   PWMCalculate();
-  if (angle > 2)  Advance(PWM);
-  if (angle < -2) Back(PWM);
-  if (abs(angle) > 40) Stop();
+  Serial.print("Angle = "); Serial.print(AngleData[0]); Serial.print("  ");
+  Serial.print("Out = "); Serial.print(anglepid.Output); Serial.print("  ");
+  Serial.print("PWM = "); Serial.println(PWM);
+  //   delay(50);
+  //    if (angle > 2)  Advance(PWM);
+  //    if (angle < -2) Back(PWM);
+  //    if (abs(angle) > 40) Stop();
 
+
+
+
+  /**/
 
 
   // MotorTest();
@@ -78,6 +97,7 @@ void mySerialEvent()
   while (mySerial.available())
   {
     JY901.CopeSerialData(mySerial.read()); //Call JY901 data cope function
+    delayMicroseconds(1);
   }
 }
 
